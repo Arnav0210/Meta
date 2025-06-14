@@ -53,7 +53,8 @@ if 'actions' in df.columns:
 
 # --- Google Sheets Setup ---
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-service_account_info = json.loads(os.environ['GOOGLE_SHEET_CREDS'])  # clean
+service_account_info = json.loads(os.environ['GOOGLE_SHEET_CREDS'])  # <- remove .encode().decode('unicode_escape')
+print("Loaded client email:", service_account_info['client_email'])   # <- this will help debug if it's valid
 creds = ServiceAccountCredentials.from_json_keyfile_dict(service_account_info, scope)
 client = gspread.authorize(creds)
 spreadsheet = client.open("Ad_Report")
