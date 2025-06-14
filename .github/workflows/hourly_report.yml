@@ -1,4 +1,4 @@
-name: Run Facebook Ads Report Hourly
+name: Run Facebook Ads Report Hourly.
 
 on:
   schedule:
