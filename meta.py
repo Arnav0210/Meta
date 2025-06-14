@@ -1,4 +1,3 @@
-
 import os
 import json
 import pandas as pd
@@ -53,8 +52,13 @@ if 'actions' in df.columns:
 
 # --- Google Sheets Setup ---
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-service_account_info = json.loads(os.environ['GOOGLE_SHEET_CREDS'])  # <- remove .encode().decode('unicode_escape')
-print("Loaded client email:", service_account_info['client_email'])   # <- this will help debug if it's valid
+service_account_info = json.loads(os.environ['GOOGLE_SHEET_CREDS'])
+
+# 🔧 FIX: Convert escaped newlines in the private key to actual newlines
+service_account_info['private_key'] = service_account_info['private_key'].replace('\\n', '\n')
+
+print("✅ Loaded client email:", service_account_info['client_email'])
+
 creds = ServiceAccountCredentials.from_json_keyfile_dict(service_account_info, scope)
 client = gspread.authorize(creds)
 spreadsheet = client.open("Ad_Report")
@@ -73,3 +77,5 @@ existing_data = pd.DataFrame(worksheet.get_all_records())
 final_data = pd.concat([existing_data, df], ignore_index=True)
 worksheet.clear()
 set_with_dataframe(worksheet, final_data)
+
+print("✅ Report updated successfully.")
