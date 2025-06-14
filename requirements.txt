@@ -1,0 +1,5 @@
+facebook_business
+gspread
+gspread_dataframe
+google-auth
+pandas
