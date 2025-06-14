@@ -6,7 +6,7 @@ from facebook_business.adobjects.adaccount import AdAccount
 from facebook_business.adobjects.adsinsights import AdsInsights
 import gspread
 from gspread_dataframe import set_with_dataframe
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials  # ✅ switched from oauth2client
 from datetime import datetime
 
 # --- Facebook API Credentials ---
@@ -54,13 +54,15 @@ if 'actions' in df.columns:
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 service_account_info = json.loads(os.environ['GOOGLE_SHEET_CREDS'])
 
-# 🔧 FIX: Convert escaped newlines in the private key to actual newlines
+# 🔧 Fix escaped newline characters
 service_account_info['private_key'] = service_account_info['private_key'].replace('\\n', '\n')
 
 print("✅ Loaded client email:", service_account_info['client_email'])
 
-creds = ServiceAccountCredentials.from_json_keyfile_dict(service_account_info, scope)
+# ✅ Use google-auth Credentials
+creds = Credentials.from_service_account_info(service_account_info, scopes=scope)
 client = gspread.authorize(creds)
+
 spreadsheet = client.open("Ad_Report")
 worksheet = spreadsheet.worksheet("Sheet1")
 
