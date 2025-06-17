@@ -13,43 +13,32 @@ from datetime import datetime
 access_token = os.environ['FB_ACCESS_TOKEN']
 app_id = os.environ['FB_APP_ID']
 app_secret = os.environ['FB_APP_SECRET']
-ad_account_id = 'act_1235239368340932'  # Replace with your Ad Account ID
+ad_account_id = 'act_1235239368340932'  # replace with actual ad account ID
 
 FacebookAdsApi.init(app_id, app_secret, access_token)
 account = AdAccount(ad_account_id)
 
 # --- Report Parameters ---
 fields = [
-    'date_start',
-    'campaign_name',
-    'adset_name',
-    'ad_name',
-    'objective',
-    'spend',
-    'reach',
-    'frequency',
-    'impressions',
-    'cpm',
-    'inline_link_clicks',
-    'cpc',
-    'ctr',
-    'actions'
+    'date_start', 'publisher_platform', 'country', 'objective', 'campaign_name',
+    'adset_name', 'ad_name', 'spend', 'reach', 'frequency', 'impressions',
+    'cpm', 'inline_link_clicks', 'cpc', 'ctr', 'actions'
 ]
 
 params = {
     'level': 'ad',
     'date_preset': 'today',
     'time_increment': 1,
-    'breakdowns': ['country', 'publisher_platform'],
+    'breakdowns': ['country'],  # Removed publisher_platform to avoid error
     'action_breakdowns': ['action_type'],
     'limit': 500
 }
 
-# --- Fetch Insights ---
+# --- Fetch Data ---
 ads = account.get_insights(fields=fields, params=params)
 df = pd.DataFrame(ads)
 
-# --- Extract Specific Actions ---
+# --- Extract Action Metrics ---
 def extract_action(action_list, action_type):
     if isinstance(action_list, list):
         for action in action_list:
@@ -58,14 +47,12 @@ def extract_action(action_list, action_type):
     return 0
 
 if 'actions' in df.columns:
-    df['Post engagements'] = df['actions'].apply(lambda x: extract_action(x, 'post_engagement'))
-    df['Leads'] = df['actions'].apply(lambda x: extract_action(x, 'lead'))
-    df['Messaging conversations started'] = df['actions'].apply(lambda x: extract_action(x, 'onsite_web_chat'))
-    df['Result Type'] = df['actions'].apply(lambda x: extract_action(x, 'offsite_conversion'))
-    df['Results'] = df['Leads']  # Using leads as results for now
+    df['post_engagements'] = df['actions'].apply(lambda x: extract_action(x, 'post_engagement'))
+    df['leads'] = df['actions'].apply(lambda x: extract_action(x, 'lead'))
+    df['messaging_conversations_started'] = df['actions'].apply(lambda x: extract_action(x, 'onsite_web_chat'))
     df.drop(columns=['actions'], inplace=True)
 
-# --- Rename Columns to Match Sheet Headers ---
+# Rename for consistency with sheet columns
 df.rename(columns={
     'date_start': 'Day',
     'publisher_platform': 'Platform',
@@ -82,24 +69,30 @@ df.rename(columns={
     'inline_link_clicks': 'Link clicks',
     'cpc': 'CPC (cost per link click)',
     'ctr': 'CTR (all)',
+    'post_engagements': 'Post engagements',
+    'leads': 'Leads',
+    'messaging_conversations_started': 'Messaging conversations started'
 }, inplace=True)
+
+# Add empty columns for formula-based fields
+df['Engagement rate'] = ''
+df['Cost per Lead'] = ''
+df['Cost per new messaging contact'] = ''
+df['Result Type'] = ''
+df['Results'] = ''
 
 # --- Google Sheets Setup ---
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 service_account_info = json.loads(os.environ['GOOGLE_SHEET_CREDS'])
-
-# Fix for escaped \n in private_key
 service_account_info['private_key'] = service_account_info['private_key'].replace('\\n', '\n')
-print("✅ Loaded client email:", service_account_info['client_email'])
 
 creds = Credentials.from_service_account_info(service_account_info, scopes=scope)
 client = gspread.authorize(creds)
 
-# Open spreadsheet
 spreadsheet = client.open("Ad_Report")
 worksheet = spreadsheet.worksheet("Sheet1")
 
-# --- Remove Today's Rows ---
+# --- Clear Today's Rows ---
 existing_data = pd.DataFrame(worksheet.get_all_records())
 today_str = datetime.today().strftime('%Y-%m-%d')
 
