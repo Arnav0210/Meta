@@ -13,35 +13,36 @@ from datetime import datetime
 access_token = os.environ['FB_ACCESS_TOKEN']
 app_id = os.environ['FB_APP_ID']
 app_secret = os.environ['FB_APP_SECRET']
-ad_account_id = 'act_1235239368340932'  # Replace with your real ID
+ad_account_id = 'act_1235239368340932'  # Replace with your Ad Account ID
 
 FacebookAdsApi.init(app_id, app_secret, access_token)
 account = AdAccount(ad_account_id)
 
-# --- Report Parameters ---
+# --- Define Columns to Pull ---
 fields = [
-    'date_start', 'objective', 'campaign_name', 'adset_name', 'ad_name',
+    'date_start', 'publisher_platform', 'objective',
+    'campaign_name', 'adset_name', 'ad_name',
     'spend', 'reach', 'frequency', 'impressions', 'cpm',
     'inline_link_clicks', 'cpc', 'ctr', 'actions'
 ]
 
 params = {
     'level': 'ad',
-    'date_preset': 'today',
+    'date_preset': 'maximum',  # Pulls full historical data
     'time_increment': 1,
-    'breakdowns': ['country', 'publisher_platform'],
+    'breakdowns': ['publisher_platform'],
     'action_breakdowns': ['action_type'],
     'limit': 500
 }
 
-# --- Fetch Insights ---
+# --- Fetch Meta Ads Insights ---
 ads = account.get_insights(fields=fields, params=params)
 df = pd.DataFrame(ads)
 
-# --- Extract metrics from actions ---
-def extract_action(actions_list, action_type):
-    if isinstance(actions_list, list):
-        for action in actions_list:
+# --- Extract relevant actions ---
+def extract_action(actions, action_type):
+    if isinstance(actions, list):
+        for action in actions:
             if action.get('action_type') == action_type:
                 return int(action.get('value', 0))
     return 0
@@ -55,26 +56,24 @@ if 'actions' in df.columns:
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 service_account_info = json.loads(os.environ['GOOGLE_SHEET_CREDS'])
 service_account_info['private_key'] = service_account_info['private_key'].replace('\\n', '\n')
-
 creds = Credentials.from_service_account_info(service_account_info, scopes=scope)
 client = gspread.authorize(creds)
 
-spreadsheet = client.open("Ad_Report")
+# --- Open Spreadsheet ---
+spreadsheet = client.open("Ad_Report")  # Change if needed
 worksheet = spreadsheet.worksheet("Sheet1")
 
-# --- Remove duplicates for today ---
+# --- Load existing data ---
 existing_data = pd.DataFrame(worksheet.get_all_records())
-today_str = datetime.today().strftime('%Y-%m-%d')
 
-if not existing_data.empty and 'date_start' in existing_data.columns:
-    existing_data = existing_data[existing_data['date_start'] != today_str]
-    worksheet.clear()
-    set_with_dataframe(worksheet, existing_data)
+# --- Merge without duplicating rows (by date_start, ad_name, publisher_platform) ---
+merge_keys = ['date_start', 'ad_name', 'publisher_platform']
+if not existing_data.empty:
+    df = pd.concat([existing_data, df])
+    df.drop_duplicates(subset=merge_keys, keep='last', inplace=True)
 
-# --- Append new data ---
-existing_data = pd.DataFrame(worksheet.get_all_records())
-final_data = pd.concat([existing_data, df], ignore_index=True)
+# --- Write back to sheet (preserve formulas by rewriting entire sheet, formulas will auto-update) ---
 worksheet.clear()
-set_with_dataframe(worksheet, final_data)
+set_with_dataframe(worksheet, df)
 
-print("✅ Report updated successfully.")
+print("✅ Meta Ads report updated successfully.")
