@@ -27,7 +27,7 @@ fields = [
 
 params = {
     'level': 'ad',
-    'date_preset': 'last_3d',  # ✅ safer than 'today' alone
+    'date_preset': 'last_2_days',  # ✅ safer than 'today'
     'time_increment': 1,
     'breakdowns': ['country'],
     'action_breakdowns': ['action_type'],
@@ -48,7 +48,7 @@ def extract_action(action_list, action_type):
 
 if 'actions' in df.columns:
     df['leads'] = df['actions'].apply(lambda x: extract_action(x, 'lead'))
-    df['leads'] = df['leads'].replace(0, df['actions'].apply(lambda x: extract_action(x, 'onsite_conversion.lead_grouped')))
+    df['leads'] = df['leads'].where(df['leads'] > 0, df['actions'].apply(lambda x: extract_action(x, 'onsite_conversion.lead_grouped')))
     df['messaging_conversations_started'] = df['actions'].apply(lambda x: extract_action(x, 'onsite_web_chat'))
     df.drop(columns=['actions'], inplace=True)
 
@@ -56,18 +56,19 @@ if 'actions' in df.columns:
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 service_account_info = json.loads(os.environ['GOOGLE_SHEET_CREDS'])
 service_account_info['private_key'] = service_account_info['private_key'].replace('\\n', '\n')
+
 creds = Credentials.from_service_account_info(service_account_info, scopes=scope)
 client = gspread.authorize(creds)
 
 spreadsheet = client.open("Ad_Report")
 worksheet = spreadsheet.worksheet("Sheet1")
 
-# --- Load existing sheet data ---
+# --- Load existing data ---
 existing_data = pd.DataFrame(worksheet.get_all_records())
 
-# --- Proceed only if new data is available ---
+# --- Proceed only if new data exists ---
 if not df.empty:
-    # Remove existing rows with same dates as in df['date_start']
+    # Drop overlapping dates
     date_range = df['date_start'].unique().tolist()
     if not existing_data.empty and 'date_start' in existing_data.columns:
         existing_data = existing_data[~existing_data['date_start'].isin(date_range)]
