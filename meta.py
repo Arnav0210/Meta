@@ -27,9 +27,9 @@ fields = [
 
 params = {
     'level': 'ad',
-    'date_preset': 'today',
+    'date_preset': 'last_2_days',  # ✅ safer than 'today' alone
     'time_increment': 1,
-    'breakdowns': ['country'],  # ✅ only country
+    'breakdowns': ['country'],
     'action_breakdowns': ['action_type'],
     'limit': 500
 }
@@ -48,6 +48,7 @@ def extract_action(action_list, action_type):
 
 if 'actions' in df.columns:
     df['leads'] = df['actions'].apply(lambda x: extract_action(x, 'lead'))
+    df['leads'] = df['leads'].replace(0, df['actions'].apply(lambda x: extract_action(x, 'onsite_conversion.lead_grouped')))
     df['messaging_conversations_started'] = df['actions'].apply(lambda x: extract_action(x, 'onsite_web_chat'))
     df.drop(columns=['actions'], inplace=True)
 
@@ -55,26 +56,26 @@ if 'actions' in df.columns:
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 service_account_info = json.loads(os.environ['GOOGLE_SHEET_CREDS'])
 service_account_info['private_key'] = service_account_info['private_key'].replace('\\n', '\n')
-
 creds = Credentials.from_service_account_info(service_account_info, scopes=scope)
 client = gspread.authorize(creds)
 
 spreadsheet = client.open("Ad_Report")
 worksheet = spreadsheet.worksheet("Sheet1")
 
-# --- Remove Today's Rows ---
+# --- Load existing sheet data ---
 existing_data = pd.DataFrame(worksheet.get_all_records())
-today_str = datetime.today().strftime('%Y-%m-%d')
 
-if not existing_data.empty and 'date_start' in existing_data.columns:
-    existing_data = existing_data[existing_data['date_start'] != today_str]
+# --- Proceed only if new data is available ---
+if not df.empty:
+    # Remove existing rows with same dates as in df['date_start']
+    date_range = df['date_start'].unique().tolist()
+    if not existing_data.empty and 'date_start' in existing_data.columns:
+        existing_data = existing_data[~existing_data['date_start'].isin(date_range)]
+
+    # Merge and upload
+    final_data = pd.concat([existing_data, df], ignore_index=True)
     worksheet.clear()
-    set_with_dataframe(worksheet, existing_data)
-
-# --- Append New Data ---
-existing_data = pd.DataFrame(worksheet.get_all_records())
-final_data = pd.concat([existing_data, df], ignore_index=True)
-worksheet.clear()
-set_with_dataframe(worksheet, final_data)
-
-print("✅ Report updated successfully with country breakdown.")
+    set_with_dataframe(worksheet, final_data)
+    print(f"✅ Report updated with {len(df)} new rows.")
+else:
+    print("⚠️ No new data returned from Meta Ads API — Sheet not modified.")
