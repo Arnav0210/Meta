@@ -27,7 +27,7 @@ fields = [
 
 params = {
     'level': 'ad',
-    'date_preset': 'last_2_days',  # ✅ safer than 'today' alone
+    'date_preset': 'last_3d',  # ✅ safer than 'today' alone
     'time_increment': 1,
     'breakdowns': ['country'],
     'action_breakdowns': ['action_type'],
