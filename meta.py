@@ -21,13 +21,12 @@ account = AdAccount(ad_account_id)
 # --- Report Fields ---
 fields = [
     'date_start', 'campaign_name', 'adset_name', 'ad_name', 'objective',
-    'spend', 'reach', 'frequency', 'impressions', 'cpm',
-    'inline_link_clicks', 'cpc', 'ctr', 'actions'
+    'spend', 'reach', 'impressions', 'inline_link_clicks', 'actions'
 ]
 
 params = {
     'level': 'ad',
-    'date_preset': 'last_3d',  # ✅ safer than 'today'
+    'date_preset': 'last_3d',
     'time_increment': 1,
     'breakdowns': ['country'],
     'action_breakdowns': ['action_type'],
@@ -47,9 +46,11 @@ def extract_action(action_list, action_type):
     return 0
 
 if 'actions' in df.columns:
-    df['leads'] = df['actions'].apply(lambda x: extract_action(x, 'lead'))
-    df['leads'] = df['leads'].where(df['leads'] > 0, df['actions'].apply(lambda x: extract_action(x, 'onsite_conversion.lead_grouped')))
-    df['messaging_conversations_started'] = df['actions'].apply(lambda x: extract_action(x, 'onsite_web_chat'))
+    df['Meta leads'] = df['actions'].apply(lambda x: extract_action(x, 'lead'))
+    df['Meta leads'] = df['Meta leads'].where(df['Meta leads'] > 0, df['actions'].apply(lambda x: extract_action(x, 'onsite_conversion.lead_grouped')))
+    df['Messaging conversations started'] = df['actions'].apply(lambda x: extract_action(x, 'onsite_web_chat'))
+    df['Post engagements'] = df['actions'].apply(lambda x: extract_action(x, 'post_engagement'))
+    df['Purchases'] = df['actions'].apply(lambda x: extract_action(x, 'purchase'))
     df.drop(columns=['actions'], inplace=True)
 
 # --- Google Sheets Setup ---
@@ -66,12 +67,34 @@ worksheet = spreadsheet.worksheet("Sheet1")
 # --- Load existing data ---
 existing_data = pd.DataFrame(worksheet.get_all_records())
 
+# --- Rename and reorder columns to match your structure ---
+df = df.rename(columns={
+    'date_start': 'Day',
+    'campaign_name': 'Campaign name',
+    'adset_name': 'Ad set name',
+    'ad_name': 'Ad name',
+    'objective': 'Objective',
+    'country': 'Country',
+    'spend': 'Amount spent (INR)',
+    'reach': 'Reach',
+    'impressions': 'Impressions',
+    'inline_link_clicks': 'Link clicks'
+})
+
+desired_order = [
+    'Day', 'Campaign name', 'Ad set name', 'Ad name', 'Objective', 'Country',
+    'Amount spent (INR)', 'Reach', 'Impressions', 'Post engagements',
+    'Link clicks', 'Meta leads', 'Messaging conversations started', 'Purchases'
+]
+
+df = df[desired_order]
+
 # --- Proceed only if new data exists ---
 if not df.empty:
     # Drop overlapping dates
-    date_range = df['date_start'].unique().tolist()
-    if not existing_data.empty and 'date_start' in existing_data.columns:
-        existing_data = existing_data[~existing_data['date_start'].isin(date_range)]
+    date_range = df['Day'].unique().tolist()
+    if not existing_data.empty and 'Day' in existing_data.columns:
+        existing_data = existing_data[~existing_data['Day'].isin(date_range)]
 
     # Merge and upload
     final_data = pd.concat([existing_data, df], ignore_index=True)
