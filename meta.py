@@ -26,7 +26,7 @@ fields = [
 
 params = {
     'level': 'ad',
-    'date_preset': 'lifetime',
+    'date_preset': 'last_90d',
     'time_increment': 1,
     'breakdowns': ['country'],
     'action_breakdowns': ['action_type'],
