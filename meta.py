@@ -26,7 +26,7 @@ fields = [
 
 params = {
     'level': 'ad',
-    'date_preset': 'last_90d',
+    'date_preset': 'last_3d',
     'time_increment': 1,
     'breakdowns': ['country'],
     'action_breakdowns': ['action_type'],
